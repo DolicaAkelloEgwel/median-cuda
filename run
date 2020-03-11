@@ -4,5 +4,6 @@ mkdir -p results
 rm -r results/*
 python test_cpu.py
 python test_cupy_median_filter.py
+python test_pycuda_sourcemodule.py
 
 python plot_results.py
