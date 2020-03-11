@@ -7,9 +7,6 @@ from cupy.cuda.memory import set_allocator
 
 from imagingtester import (
     ImagingTester,
-    MINIMUM_PIXEL_VALUE,
-    MAXIMUM_PIXEL_VALUE,
-    create_arrays,
     PRINT_INFO,
     get_array_partition_indices,
     memory_needed_for_arrays,
@@ -18,9 +15,15 @@ from imagingtester import (
 from imagingtester import num_partitions_needed as number_of_partitions_needed
 
 LIB_NAME = "cupy"
-MAX_CUPY_MEMORY = 0.9  # Anything exceeding this seems to make malloc fail for me
+MAX_CUPY_MEMORY = 0.8  # Anything exceeding this seems to make malloc fail for me
 
 REFLECT_MODE = "reflect"
+
+# Allocate CUDA memory
+mempool = cp.get_default_memory_pool()
+with cp.cuda.Device(0):
+    mempool.set_limit(fraction=MAX_CUPY_MEMORY)
+# mempool.malloc(mempool.get_limit())
 
 
 def print_memory_metrics():
@@ -151,6 +154,8 @@ class CupyImplementation(ImagingTester):
                 gpu_array.set(pinned_memory, stream=array_stream)
                 gpu_arrays.append(gpu_array)
             except cp.cuda.memory.OutOfMemoryError:
+                print("Out of memory...")
+                print_memory_metrics()
                 self.print_memory_after_exception(cpu_arrays, gpu_arrays)
                 return []
 
@@ -224,11 +229,8 @@ class CupyImplementation(ImagingTester):
 
             # Time the transfer from CPU to GPU
             start = get_synchronized_time()
-            gpu_data_array = self._send_arrays_to_gpu([self.cpu_arrays[0]])
-            padded_array = cp.pad(
-                gpu_data_array,
-                pad_width=((0, 0), (pad_width, pad_width), (pad_height, pad_height)),
-                mode=REFLECT_MODE,
+            gpu_data_array, padded_gpu_array = self._send_arrays_to_gpu(
+                [self.cpu_arrays[0], padded_cpu_array]
             )
             transfer_time = get_synchronized_time() - start
 
@@ -236,7 +238,7 @@ class CupyImplementation(ImagingTester):
             for _ in range(runs):
                 operation_time += time_function(
                     lambda: cupy_median_filter(
-                        gpu_data_array, padded_array, filter_height, filter_width
+                        gpu_data_array, padded_gpu_array, filter_height, filter_width
                     )
                 )
 
@@ -244,7 +246,7 @@ class CupyImplementation(ImagingTester):
             transfer_time += time_function(gpu_data_array[0].get)
 
             # Free the GPU arrays
-            free_memory_pool([gpu_data_array, padded_array])
+            free_memory_pool([gpu_data_array, padded_gpu_array])
 
         else:
 
@@ -358,15 +360,3 @@ class CupyImplementation(ImagingTester):
         )
 
         return transfer_time + operation_time / runs
-
-
-# set_allocator(MemoryPool(malloc_managed).malloc)
-
-# Allocate CUDA memory
-mempool = cp.get_default_memory_pool()
-with cp.cuda.Device(0):
-    mempool.set_limit(fraction=MAX_CUPY_MEMORY)
-mempool.malloc(mempool.get_limit())
-
-pinned_memory_pool = cp.cuda.PinnedMemoryPool()
-cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
