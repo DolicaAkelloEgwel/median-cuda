@@ -43,7 +43,7 @@ def timed_get_array_from_gpu(gpu_array):
 
 
 def get_free_bytes():
-    return drv.mem_get_info()[0]
+    return drv.mem_get_info()[0] * FREE_MEMORY_FACTOR
 
 
 def get_total_bytes():
