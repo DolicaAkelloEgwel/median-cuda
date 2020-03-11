@@ -27,7 +27,11 @@ filter_height = 3
 filter_width = 3
 filter_size = (filter_height, filter_width)
 
-cp_data = cp.random.uniform(low=0, high=10, size=(8, 8, 8)).astype(DTYPE)
+test_size = 5
+
+cp_data = cp.random.uniform(
+    low=0, high=10, size=(test_size, test_size, test_size)
+).astype(DTYPE)
 np_data = cp_data.get()
 
 # Create a padded array in the GPU
@@ -50,10 +54,11 @@ cupy_median_filter(
 scipy_median_filter(np_data, size=filter_size)
 # Check that the results match
 cp_result = cp_data.get()
-print(np.isclose(np_data, cp_result))
 assert np.allclose(np_data, cp_result)
 
-free_memory_pool([cp_data])
+del cp_data
+del padded_data
+free_memory_pool()
 
 for use_pinned_memory in pinned_memory_mode:
 
