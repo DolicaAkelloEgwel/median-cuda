@@ -12,6 +12,7 @@ from imagingtester import (
     memory_needed_for_arrays,
     load_median_filter_file,
     FREE_MEMORY_FACTOR,
+    create_arrays,
 )
 from imagingtester import num_partitions_needed as number_of_partitions_needed
 
@@ -134,6 +135,22 @@ def cupy_two_dim_median_filter(data, padded_data, filter_height, filter_width):
     )
 
 
+def create_padded_array(arr, pad_width, pad_height):
+
+    if arr.ndim == 2:
+        return np.pad(
+            arr,
+            pad_width=((pad_width, pad_width), (pad_height, pad_height)),
+            mode="reflect",
+        )
+    else:
+        return np.pad(
+            arr,
+            pad_width=((0, 0), (pad_width, pad_width), (pad_height, pad_height)),
+            mode="reflect",
+        )
+
+
 def replace_gpu_array_contents(
     gpu_array, cpu_array, stream=cp.cuda.Stream(non_blocking=True)
 ):
@@ -151,6 +168,35 @@ class CupyImplementation(ImagingTester):
             self._send_arrays_to_gpu = self._send_arrays_to_gpu_without_pinned_memory
 
         self.lib_name = LIB_NAME
+        self._warm_up()
+
+    def _warm_up(self):
+
+        image_stack = create_arrays((3, 3, 3), self.dtype)[0]
+        filter_size = (3, 3)
+
+        single_image = image_stack[0]
+        padded_image = create_padded_array(
+            single_image, filter_size[0] // 2, filter_size[1] // 2
+        )
+        gpu_image, gpu_padded_image = self._send_arrays_to_gpu_without_pinned_memory(
+            [single_image, padded_image]
+        )
+
+        cupy_two_dim_median_filter(
+            gpu_image, gpu_padded_image, filter_size[0], filter_size[1]
+        )
+
+        padded_image_stack = create_padded_array(
+            image_stack, filter_size[0] // 2, filter_size[1] // 2
+        )
+        gpu_image_stack, gpu_padded_image_stack = self._send_arrays_to_gpu_without_pinned_memory(
+            [image_stack, padded_image_stack]
+        )
+
+        cupy_three_dim_median_filter(
+            gpu_image_stack, gpu_padded_image_stack, filter_size[0], filter_size[1]
+        )
 
     def _send_arrays_to_gpu_with_pinned_memory(self, cpu_arrays, streams=None):
         """
@@ -235,8 +281,10 @@ class CupyImplementation(ImagingTester):
 
         n_images = self.cpu_arrays[0].shape[0]
 
-        if n_images > 150:
-            slice_limit = 150
+        MAX_GPU_SLICES = 180
+
+        if n_images > MAX_GPU_SLICES:
+            slice_limit = MAX_GPU_SLICES
         else:
             slice_limit = n_images
 
@@ -244,12 +292,7 @@ class CupyImplementation(ImagingTester):
             self.cpu_arrays[0][i] for i in range(self.cpu_arrays[0].shape[0])
         ]
         cpu_padded_slices = [
-            np.pad(
-                arr,
-                pad_width=((pad_width, pad_width), (pad_height, pad_height)),
-                mode="reflect",
-            )
-            for arr in cpu_data_slices
+            create_padded_array(arr, pad_width, pad_height) for arr in cpu_data_slices
         ]
         streams = [cp.cuda.Stream(non_blocking=True) for _ in range(slice_limit)]
 
@@ -319,9 +362,8 @@ class CupyImplementation(ImagingTester):
         filter_height = filter_size[0]
         filter_width = filter_size[1]
 
-        padded_cpu_array = np.pad(
-            self.cpu_arrays[0],
-            pad_width=((0, 0), (pad_width, pad_width), (pad_height, pad_height)),
+        padded_cpu_array = create_padded_array(
+            self.cpu_arrays[0], pad_width, pad_height
         )
 
         if n_partitions_needed == 1:
@@ -387,15 +429,7 @@ class CupyImplementation(ImagingTester):
                         split_cpu_array, cp.cuda.Stream(non_blocking=True)
                     )
                     gpu_padded_array.set(
-                        np.pad(
-                            split_cpu_array,
-                            pad_width=(
-                                (0, 0),
-                                (pad_width, pad_width),
-                                (pad_height, pad_height),
-                            ),
-                            mode=REFLECT_MODE,
-                        ),
+                        create_padded_array(split_cpu_array, pad_width, pad_height),
                         cp.cuda.Stream(non_blocking=True),
                     )
                     transfer_time += get_synchronized_time() - start
@@ -412,13 +446,8 @@ class CupyImplementation(ImagingTester):
                     )
                     transfer_time += get_synchronized_time() - start
 
-                    padded_cpu_array = np.pad(
-                        expanded_cpu_array,
-                        pad_width=(
-                            (0, 0),
-                            (pad_width, pad_width),
-                            (pad_height, pad_height),
-                        ),
+                    padded_cpu_array = create_padded_array(
+                        expanded_cpu_array, pad_width, pad_height
                     )
                     start = get_synchronized_time()
                     gpu_padded_array.set(

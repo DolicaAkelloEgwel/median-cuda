@@ -39,7 +39,6 @@ median_filter_results = []
 for size in ARRAY_SIZES[:SIZES_SUBSET]:
 
     imaging_obj = CPUImplementation(size, DTYPE)
-
     median_filter_results.append(imaging_obj.timed_median_filter(N_RUNS))
 
 write_results_to_file([LIB_NAME], "median filter", median_filter_results)

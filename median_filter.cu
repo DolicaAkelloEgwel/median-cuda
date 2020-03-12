@@ -83,4 +83,31 @@ extern "C"{
             data_array[(id_x * X) + id_y] = find_median(neighb_array, filter_height * filter_width);
         }
     }
+    __global__ void two_dim_remove_outliers(float* data_array, const float* padded_array, const int X, const int Y, const int filter_height, const int filter_width)
+    {
+        unsigned int id_x = blockIdx.y*blockDim.y + threadIdx.y;
+        unsigned int id_y = blockIdx.z*blockDim.z + threadIdx.z;
+        unsigned int index = (id_x * X) + id_y;
+        unsigned int n_counter = 0;
+        unsigned int padded_img_width =  X + filter_height - 1;
+
+        float neighb_array[25];
+
+        if ((id_x >= X) || (id_y >= Y))
+            return;
+
+        for (int i = id_x; i < id_x + filter_height; i++)
+        {
+            for (int j = id_y; j < id_y + filter_width; j++)
+            {
+                neighb_array[n_counter] = padded_array[(i * padded_img_width) + j];
+                n_counter += 1;
+            }
+        }
+
+        float median = find_median(neighb_array, filter_height * filter_width);
+
+        if (diff(data_array[index], median) >= diff)
+            data_array[index] = median;
+    }
 }
