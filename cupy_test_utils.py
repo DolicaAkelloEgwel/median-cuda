@@ -11,6 +11,7 @@ from imagingtester import (
     get_array_partition_indices,
     memory_needed_for_arrays,
     load_median_filter_file,
+    FREE_MEMORY_FACTOR,
 )
 from imagingtester import num_partitions_needed as number_of_partitions_needed
 
@@ -88,17 +89,18 @@ def time_function(func):
 def get_free_bytes():
     free_bytes = mempool.free_bytes()
     if free_bytes > 0:
-        return free_bytes
-    return mempool.get_limit()
+        return free_bytes * FREE_MEMORY_FACTOR
+    return mempool.get_limit() * FREE_MEMORY_FACTOR
 
 
 loaded_from_source = load_median_filter_file()
 
 median_filter_module = cp.RawModule(code=loaded_from_source, backend="nvcc")
-median_filter = median_filter_module.get_function("median_filter")
+three_dim_median_filter = median_filter_module.get_function("three_dim_median_filter")
+two_dim_median_filter = median_filter_module.get_function("two_dim_median_filter")
 
 
-def cupy_median_filter(data, padded_data, filter_height, filter_width):
+def cupy_three_dim_median_filter(data, padded_data, filter_height, filter_width):
     N = 10
     block_size = (N, N, N)
     grid_size = (
@@ -106,7 +108,7 @@ def cupy_median_filter(data, padded_data, filter_height, filter_width):
         data.shape[1] // block_size[1],
         data.shape[2] // block_size[2],
     )
-    median_filter(
+    three_dim_median_filter(
         grid_size,
         block_size,
         (
@@ -121,8 +123,21 @@ def cupy_median_filter(data, padded_data, filter_height, filter_width):
     )
 
 
-def replace_gpu_array_contents(gpu_array, cpu_array):
-    gpu_array.set(cpu_array, cp.cuda.Stream(non_blocking=True))
+def cupy_two_dim_median_filter(data, padded_data, filter_height, filter_width):
+    N = 10
+    block_size = (N, N)
+    grid_size = (data.shape[0] // block_size[0], data.shape[1] // block_size[1])
+    two_dim_median_filter(
+        grid_size,
+        block_size,
+        (data, padded_data, data.shape[0], data.shape[1], filter_height, filter_width),
+    )
+
+
+def replace_gpu_array_contents(
+    gpu_array, cpu_array, stream=cp.cuda.Stream(non_blocking=True)
+):
+    gpu_array.set(cpu_array, stream)
 
 
 class CupyImplementation(ImagingTester):
@@ -137,7 +152,7 @@ class CupyImplementation(ImagingTester):
 
         self.lib_name = LIB_NAME
 
-    def _send_arrays_to_gpu_with_pinned_memory(self, cpu_arrays):
+    def _send_arrays_to_gpu_with_pinned_memory(self, cpu_arrays, streams=None):
         """
         Transfer the arrays to the GPU using pinned memory. Should make data transfer quicker.
         """
@@ -150,8 +165,12 @@ class CupyImplementation(ImagingTester):
             try:
                 pinned_memory = _create_pinned_memory(cpu_arrays[i].copy())
                 gpu_array = cp.empty(pinned_memory.shape, dtype=self.dtype)
-                array_stream = cp.cuda.Stream(non_blocking=True)
-                gpu_array.set(pinned_memory, stream=array_stream)
+                if streams is None:
+                    gpu_array.set(
+                        pinned_memory, stream=cp.cuda.Stream(non_blocking=True)
+                    )
+                else:
+                    gpu_array.set(pinned_memory, stream=streams[i])
                 gpu_arrays.append(gpu_array)
             except cp.cuda.memory.OutOfMemoryError:
                 print("Out of memory...")
@@ -201,7 +220,74 @@ class CupyImplementation(ImagingTester):
         )
         free_memory_pool(gpu_arrays)
 
-    def timed_median_filter(self, runs, filter_size):
+    def timed_async_median_filter(self, runs, filter_size):
+
+        # Synchronize and free memory before making an assessment about available space
+        free_memory_pool()
+
+        operation_time = 0
+
+        pad_height, pad_width = self.get_padding_values(filter_size)
+
+        filter_height = filter_size[0]
+        filter_width = filter_size[1]
+
+        slice_limit = 250
+
+        cpu_data_slices = [
+            self.cpu_arrays[0][i] for i in range(self.cpu_arrays[0].shape[0])
+        ]
+        cpu_padded_slices = [
+            np.pad(
+                arr,
+                pad_width=((0, 0), (pad_width, pad_width), (pad_height, pad_height)),
+                mode="reflect",
+            )
+            for arr in cpu_data_slices
+        ]
+        streams = [cp.cuda.Stream(non_blocking=True) for _ in range(slice_limit)]
+
+        gpu_data_slices = self._send_arrays_to_gpu_with_pinned_memory(
+            cpu_data_slices[:slice_limit], streams
+        )
+        gpu_padded_data = self._send_arrays_to_gpu_with_pinned_memory(
+            cpu_padded_slices[:slice_limit], streams
+        )
+
+        for i in range(self.cpu_arrays[0].shape[0]):
+
+            streams[i].synchronize()
+
+            replace_gpu_array_contents(
+                gpu_data_slices[i % slice_limit],
+                self.cpu_arrays[0][i],
+                streams[i % slice_limit],
+            )
+
+            replace_gpu_array_contents(
+                gpu_padded_data[i % slice_limit],
+                cpu_padded_slices[i],
+                streams[i % slice_limit],
+            )
+
+            streams[i].synchronize()
+
+            cupy_two_dim_median_filter(
+                gpu_data_slices[i % slice_limit],
+                gpu_padded_data[i % slice_limit],
+                filter_height,
+                filter_width,
+            )
+
+            streams[i].synchronize()
+
+            self.cpu_arrays[0][i][:] = gpu_data_slices[i % slice_limit].get(
+                streams[i % slice_limit]
+            )
+
+        free_memory_pool(gpu_data_slices + gpu_padded_data)
+
+    def timed_three_dim_median_filter(self, runs, filter_size):
 
         # Synchronize and free memory before making an assessment about available space
         free_memory_pool()
@@ -214,8 +300,7 @@ class CupyImplementation(ImagingTester):
         transfer_time = 0
         operation_time = 0
 
-        pad_height = filter_size[1] // 2
-        pad_width = filter_size[0] // 2
+        pad_height, pad_width = self.get_padding_values(filter_size)
 
         filter_height = filter_size[0]
         filter_width = filter_size[1]
@@ -237,7 +322,7 @@ class CupyImplementation(ImagingTester):
             # Repeat the operation
             for _ in range(runs):
                 operation_time += time_function(
-                    lambda: cupy_median_filter(
+                    lambda: cupy_three_dim_median_filter(
                         gpu_data_array, padded_gpu_array, filter_height, filter_width
                     )
                 )
@@ -331,7 +416,7 @@ class CupyImplementation(ImagingTester):
                     # Carry out the operation on the slices
                     for _ in range(runs):
                         operation_time += time_function(
-                            lambda: cupy_median_filter(
+                            lambda: cupy_three_dim_median_filter(
                                 gpu_data_array,
                                 gpu_padded_array,
                                 filter_height,
@@ -360,3 +445,8 @@ class CupyImplementation(ImagingTester):
         )
 
         return transfer_time + operation_time / runs
+
+    def get_padding_values(self, filter_size):
+        pad_height = filter_size[1] // 2
+        pad_width = filter_size[0] // 2
+        return pad_height, pad_width
