@@ -5,7 +5,7 @@ from cupy_test_utils import (
     LIB_NAME,
     free_memory_pool,
     REFLECT_MODE,
-    cupy_median_filter,
+    cupy_three_dim_median_filter,
 )
 from imagingtester import (
     USE_CUPY_NONPINNED_MEMORY,
@@ -44,7 +44,7 @@ padded_data = cp.pad(
 )
 
 # Run the median filter on the GPU
-cupy_median_filter(
+cupy_three_dim_median_filter(
     data=cp_data,
     padded_data=padded_data,
     filter_height=filter_height,
@@ -74,7 +74,7 @@ for use_pinned_memory in pinned_memory_mode:
 
         imaging_obj = CupyImplementation(size, DTYPE, use_pinned_memory)
 
-        avg_mf = imaging_obj.timed_median_filter(N_RUNS, FILTER_SIZE)
+        avg_mf = imaging_obj.timed_three_dim_median_filter(N_RUNS, FILTER_SIZE)
 
         if avg_mf > 0:
             median_filter_results.append(avg_mf)
