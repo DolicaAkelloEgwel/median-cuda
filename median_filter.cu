@@ -18,7 +18,7 @@ extern "C"{
         }
         return neighb_array[N / 2];
     }
-    __global__ void median_filter(float* data_array, const float* padded_array, const int N_IMAGES, const int X, const int Y, const int filter_height, const int filter_width)
+    __global__ void three_dim_median_filter(float* data_array, const float* padded_array, const int N_IMAGES, const int X, const int Y, const int filter_height, const int filter_width)
     {
         unsigned int id_img = blockIdx.x*blockDim.x + threadIdx.x;
         unsigned int id_x = blockIdx.y*blockDim.y + threadIdx.y;
@@ -50,6 +50,37 @@ extern "C"{
             }
 
             data_array[(id_img * img_size) + (id_x * X) + id_y] = find_median(neighb_array, filter_height * filter_width);
+        }
+    }
+    __global__ void two_dim_median_filter(float* data_array, const float* padded_array, const int X, const int Y, const int filter_height, const int filter_width)
+    {
+        unsigned int id_x = blockIdx.y*blockDim.y + threadIdx.y;
+        unsigned int id_y = blockIdx.z*blockDim.z + threadIdx.z;
+        unsigned int n_counter = 0;
+        unsigned int padded_img_width =  X + filter_height - 1;
+
+        float neighb_array[25];
+
+        if ((id_x < X) && (id_y < Y))
+        {
+            for (int i = id_x; i < id_x + filter_height; i++)
+            {
+                for (int j = id_y; j < id_y + filter_width; j++)
+                {
+                    neighb_array[n_counter] = padded_array[(i * padded_img_width) + j];
+                    n_counter += 1;
+                }
+            }
+
+            if (0)
+            {
+                find_median(neighb_array, filter_height * filter_width);
+                for (int i = 0; i < filter_width * filter_height; i++)
+                    printf("%f ", neighb_array[i]);
+                printf("\n");
+            }
+
+            data_array[(id_x * X) + id_y] = find_median(neighb_array, filter_height * filter_width);
         }
     }
 }
