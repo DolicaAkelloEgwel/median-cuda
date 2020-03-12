@@ -226,13 +226,19 @@ class CupyImplementation(ImagingTester):
         free_memory_pool()
 
         operation_time = 0
+        transfer_time = 0
 
         pad_height, pad_width = self.get_padding_values(filter_size)
 
         filter_height = filter_size[0]
         filter_width = filter_size[1]
 
-        slice_limit = 250
+        n_images = self.cpu_arrays[0].shape[0]
+
+        if n_images > 150:
+            slice_limit = 150
+        else:
+            slice_limit = n_images
 
         cpu_data_slices = [
             self.cpu_arrays[0][i] for i in range(self.cpu_arrays[0].shape[0])
@@ -240,23 +246,28 @@ class CupyImplementation(ImagingTester):
         cpu_padded_slices = [
             np.pad(
                 arr,
-                pad_width=((0, 0), (pad_width, pad_width), (pad_height, pad_height)),
+                pad_width=((pad_width, pad_width), (pad_height, pad_height)),
                 mode="reflect",
             )
             for arr in cpu_data_slices
         ]
         streams = [cp.cuda.Stream(non_blocking=True) for _ in range(slice_limit)]
 
+        start = get_synchronized_time()
         gpu_data_slices = self._send_arrays_to_gpu_with_pinned_memory(
             cpu_data_slices[:slice_limit], streams
         )
         gpu_padded_data = self._send_arrays_to_gpu_with_pinned_memory(
             cpu_padded_slices[:slice_limit], streams
         )
+        transfer_time += get_synchronized_time() - start
 
+        print("Copied arrays.")
+
+        start = get_synchronized_time()
         for i in range(self.cpu_arrays[0].shape[0]):
 
-            streams[i].synchronize()
+            streams[i % slice_limit].synchronize()
 
             replace_gpu_array_contents(
                 gpu_data_slices[i % slice_limit],
@@ -270,7 +281,7 @@ class CupyImplementation(ImagingTester):
                 streams[i % slice_limit],
             )
 
-            streams[i].synchronize()
+            streams[i % slice_limit].synchronize()
 
             cupy_two_dim_median_filter(
                 gpu_data_slices[i % slice_limit],
@@ -279,13 +290,16 @@ class CupyImplementation(ImagingTester):
                 filter_width,
             )
 
-            streams[i].synchronize()
+            streams[i % slice_limit].synchronize()
 
             self.cpu_arrays[0][i][:] = gpu_data_slices[i % slice_limit].get(
                 streams[i % slice_limit]
             )
+        operation_time += get_synchronized_time() - start
 
         free_memory_pool(gpu_data_slices + gpu_padded_data)
+
+        return operation_time + transfer_time
 
     def timed_three_dim_median_filter(self, runs, filter_size):
 
