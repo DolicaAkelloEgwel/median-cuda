@@ -163,19 +163,19 @@ def cupy_two_dim_remove_outliers(data, padded_data, diff, size, mode):
         )
 
 
-def create_padded_array(arr, pad_width, pad_height):
+def create_padded_array(arr, pad_width, pad_height, mode="relfect"):
 
     if arr.ndim == 2:
         return np.pad(
             arr,
             pad_width=((pad_width, pad_width), (pad_height, pad_height)),
-            mode="reflect",
+            mode=mode,
         )
     else:
         return np.pad(
             arr,
             pad_width=((0, 0), (pad_width, pad_width), (pad_height, pad_height)),
-            mode="reflect",
+            mode=mode,
         )
 
 
