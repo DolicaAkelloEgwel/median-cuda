@@ -83,7 +83,7 @@ extern "C"{
             data_array[(id_x * X) + id_y] = find_median(neighb_array, filter_height * filter_width);
         }
     }
-    __global__ void two_dim_remove_dark_outliers(float* data_array, const float* padded_array, const int X, const int Y, const int filter_height, const int filter_width, const float diff)
+    __global__ void two_dim_remove_light_outliers(float* data_array, const float* padded_array, const int X, const int Y, const int filter_height, const int filter_width, const float diff)
     {
         unsigned int id_x = blockIdx.y*blockDim.y + threadIdx.y;
         unsigned int id_y = blockIdx.z*blockDim.z + threadIdx.z;
@@ -110,7 +110,7 @@ extern "C"{
         if (data_array[index] - median >= diff)
             data_array[index] = median;
     }
-        __global__ void two_dim_remove_light_outliers(float* data_array, const float* padded_array, const int X, const int Y, const int filter_height, const int filter_width, const float diff)
+    __global__ void two_dim_remove_dark_outliers(float* data_array, const float* padded_array, const int X, const int Y, const int filter_height, const int filter_width, const float diff)
     {
         unsigned int id_x = blockIdx.y*blockDim.y + threadIdx.y;
         unsigned int id_y = blockIdx.z*blockDim.z + threadIdx.z;
