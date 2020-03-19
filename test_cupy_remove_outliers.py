@@ -12,7 +12,7 @@ filter_size = (filter_height, filter_width)
 
 N = 4
 
-cp_data = cp.random.uniform(low=0, high=10, size=(N,N,N)).astype(DTYPE)
+cp_data = cp.random.uniform(low=0, high=10, size=(N, N, N)).astype(DTYPE)
 np_data = cp_data.get()
 gpu_result = np.empty_like(np_data)
 
@@ -47,4 +47,3 @@ print(np.isclose(cpu_result[0], np_data[0]))
 
 for i in range(N):
     assert np.allclose(gpu_result, cpu_result)
-
