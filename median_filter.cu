@@ -18,108 +18,86 @@ extern "C"{
         }
         return neighb_array[N / 2];
     }
-    __global__ void three_dim_median_filter(float* data_array, const float* padded_array, const int N_IMAGES, const int X, const int Y, const int filter_height, const int filter_width)
+    __device__ float find_neighbour_median(const float* padded_array, const int index_offset, const int padded_img_width, const int id_x, const int id_y, const int filter_size)
+    {
+        float neighb_array[25];
+        int n_counter = 0;
+
+        for (int i = id_x; i < id_x + filter_size; i++)
+        {
+            for (int j = id_y; j < id_y + filter_size; j++)
+            {
+                neighb_array[n_counter] = padded_array[index_offset + (i * padded_img_width) + j];
+                n_counter += 1;
+            }
+        }
+        return find_median_in_one_dim_array(neighb_array, filter_size * filter_size);
+    }
+    __global__ void three_dim_median_filter(float* data_array, const float* padded_array, const int N_IMAGES, const int X, const int Y, const int filter_size)
     {
         unsigned int id_img = blockIdx.x*blockDim.x + threadIdx.x;
         unsigned int id_x = blockIdx.y*blockDim.y + threadIdx.y;
         unsigned int id_y = blockIdx.z*blockDim.z + threadIdx.z;
         unsigned int n_counter = 0;
         unsigned int img_size =  X * Y;
-        unsigned int padded_img_width =  X + filter_height - 1;
-        unsigned int padded_img_size =  padded_img_width * (Y + filter_width - 1);
+        unsigned int padded_img_width =  X + filter_size - 1;
+        unsigned int padded_img_size =  padded_img_width * (Y + filter_size - 1);
 
         float neighb_array[25];
 
         if ((id_img >= N_IMAGES) || (id_x >= X) || (id_y >= Y))
             return;
         
-        for (int i = id_x; i < id_x + filter_height; i++)
-        {
-            for (int j = id_y; j < id_y + filter_width; j++)
-            {
-                neighb_array[n_counter] = padded_array[(id_img * padded_img_size) + (i * padded_img_width) + j];
-                n_counter += 1;
-            }
-        }
-
-        data_array[(id_img * img_size) + (id_x * X) + id_y] = find_median_in_one_dim_array(neighb_array, filter_height * filter_width);
+        data_array[(id_img * img_size) + (id_x * X) + id_y] = find_neighbour_median(padded_array, id_img * padded_img_size, padded_img_width, id_x, id_y, filter_size);
     }
-    __global__ void two_dim_median_filter(float* data_array, const float* padded_array, const int X, const int Y, const int filter_height, const int filter_width)
+    __global__ void two_dim_median_filter(float* data_array, const float* padded_array, const int X, const int Y, const int filter_size)
     {
         unsigned int id_x = blockIdx.y*blockDim.y + threadIdx.y;
         unsigned int id_y = blockIdx.z*blockDim.z + threadIdx.z;
         unsigned int n_counter = 0;
-        unsigned int padded_img_width =  X + filter_height - 1;
+        unsigned int padded_img_width =  X + filter_size - 1;
 
         float neighb_array[25];
 
         if ((id_x >= X) || (id_y >= Y))
             return;
 
-        for (int i = id_x; i < id_x + filter_height; i++)
-        {
-            for (int j = id_y; j < id_y + filter_width; j++)
-            {
-                neighb_array[n_counter] = padded_array[(i * padded_img_width) + j];
-                n_counter += 1;
-            }
-        }
-
-        data_array[(id_x * X) + id_y] = find_median_in_one_dim_array(neighb_array, filter_height * filter_width);
+        data_array[(id_x * X) + id_y] = find_neighbour_median(padded_array, 0, padded_img_width, id_x, id_y, filter_size);  
     }
-    __global__ void two_dim_remove_light_outliers(float* data_array, const float* padded_array, const int X, const int Y, const int filter_height, const int filter_width, const float diff)
+    __global__ void two_dim_remove_light_outliers(float* data_array, const float* padded_array, const int X, const int Y, const int filter_size, const float diff)
     {
         unsigned int id_x = blockIdx.y*blockDim.y + threadIdx.y;
         unsigned int id_y = blockIdx.z*blockDim.z + threadIdx.z;
         unsigned int index = (id_x * X) + id_y;
         unsigned int n_counter = 0;
-        unsigned int padded_img_width =  X + filter_height - 1;
+        unsigned int padded_img_width =  X + filter_size - 1;
 
         float neighb_array[25];
 
         if ((id_x >= X) || (id_y >= Y))
             return;
 
-        for (int i = id_x; i < id_x + filter_height; i++)
-        {
-            for (int j = id_y; j < id_y + filter_width; j++)
-            {
-                neighb_array[n_counter] = padded_array[(i * padded_img_width) + j];
-                n_counter += 1;
-            }
-        }
-
-        float median = find_median_in_one_dim_array(neighb_array, filter_height * filter_width);
+        float median = find_neighbour_median(padded_array, 0, padded_img_width, id_x, id_y, filter_size);
 
         if (data_array[index] - median >= diff)
         {
-            // printf("Replacing %.6f with %.6f\n", data_array[index], median);
             data_array[index] = median;
         }
     }
-    __global__ void two_dim_remove_dark_outliers(float* data_array, const float* padded_array, const int X, const int Y, const int filter_height, const int filter_width, const float diff)
+    __global__ void two_dim_remove_dark_outliers(float* data_array, const float* padded_array, const int X, const int Y, const int filter_size, const float diff)
     {
         unsigned int id_x = blockIdx.y*blockDim.y + threadIdx.y;
         unsigned int id_y = blockIdx.z*blockDim.z + threadIdx.z;
         unsigned int index = (id_x * X) + id_y;
         unsigned int n_counter = 0;
-        unsigned int padded_img_width =  X + filter_height - 1;
+        unsigned int padded_img_width =  X + filter_size - 1;
 
         float neighb_array[25];
 
         if ((id_x >= X) || (id_y >= Y))
             return;
 
-        for (int i = id_x; i < id_x + filter_height; i++)
-        {
-            for (int j = id_y; j < id_y + filter_width; j++)
-            {
-                neighb_array[n_counter] = padded_array[(i * padded_img_width) + j];
-                n_counter += 1;
-            }
-        }
-
-        float median = find_median_in_one_dim_array(neighb_array, filter_height * filter_width);
+        float median = find_neighbour_median(padded_array, 0, padded_img_width, id_x, id_y, filter_size);
 
         if (median - data_array[index] >= diff)
         {
