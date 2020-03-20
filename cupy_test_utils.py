@@ -107,7 +107,7 @@ two_dim_remove_dark_outliers = median_filter_module.get_function(
 )
 
 
-def cupy_three_dim_median_filter(data, padded_data, filter_height, filter_width):
+def cupy_three_dim_median_filter(data, padded_data, filter_size):
     N = 10
     block_size = (N, N, N)
     grid_size = (
@@ -124,19 +124,18 @@ def cupy_three_dim_median_filter(data, padded_data, filter_height, filter_width)
             data.shape[0],
             data.shape[1],
             data.shape[2],
-            filter_height,
-            filter_width,
+            filter_size,
         ),
     )
 
 
-def cupy_two_dim_median_filter(data, padded_data, filter_height, filter_width):
+def cupy_two_dim_median_filter(data, padded_data, filter_size):
     N = 10
     block_size, grid_size = create_block_and_grid_args(N, data)
     two_dim_median_filter(
         grid_size,
         block_size,
-        (data, padded_data, data.shape[0], data.shape[1], filter_height, filter_width),
+        (data, padded_data, data.shape[0], data.shape[1], filter_size),
     )
 
 
@@ -153,28 +152,26 @@ def cupy_two_dim_remove_outliers(data, padded_data, diff, size, mode):
         two_dim_remove_light_outliers(
             grid_size,
             block_size,
-            (data, padded_data, data.shape[0], data.shape[1], size, size, diff),
+            (data, padded_data, data.shape[0], data.shape[1], size, diff),
         )
     if mode == "dark":
         two_dim_remove_dark_outliers(
             grid_size,
             block_size,
-            (data, padded_data, data.shape[0], data.shape[1], size, size, diff),
+            (data, padded_data, data.shape[0], data.shape[1], size, diff),
         )
 
 
-def create_padded_array(arr, pad_width, pad_height, mode="relfect"):
+def create_padded_array(arr, pad_size, mode="reflect"):
 
     if arr.ndim == 2:
         return np.pad(
-            arr,
-            pad_width=((pad_width, pad_width), (pad_height, pad_height)),
-            mode=mode,
+            arr, pad_width=((pad_size, pad_size), (pad_size, pad_size)), mode=mode
         )
     else:
         return np.pad(
             arr,
-            pad_width=((0, 0), (pad_width, pad_width), (pad_height, pad_height)),
+            pad_width=((0, 0), (pad_size, pad_size), (pad_size, pad_size)),
             mode=mode,
         )
 
@@ -201,29 +198,29 @@ class CupyImplementation(ImagingTester):
     def _warm_up(self):
 
         image_stack = create_arrays((3, 3, 3), self.dtype)[0]
-        filter_size = (3, 3)
+        filter_size = 3
 
         single_image = image_stack[0]
         padded_image = create_padded_array(
-            single_image, filter_size[0] // 2, filter_size[1] // 2
+            single_image, filter_size
         )
         gpu_image, gpu_padded_image = self._send_arrays_to_gpu_without_pinned_memory(
             [single_image, padded_image]
         )
 
         cupy_two_dim_median_filter(
-            gpu_image, gpu_padded_image, filter_size[0], filter_size[1]
+            gpu_image, gpu_padded_image, filter_size
         )
 
         padded_image_stack = create_padded_array(
-            image_stack, filter_size[0] // 2, filter_size[1] // 2
+            image_stack, filter_size // 2
         )
         gpu_image_stack, gpu_padded_image_stack = self._send_arrays_to_gpu_without_pinned_memory(
             [image_stack, padded_image_stack]
         )
 
         cupy_three_dim_median_filter(
-            gpu_image_stack, gpu_padded_image_stack, filter_size[0], filter_size[1]
+            gpu_image_stack, gpu_padded_image_stack, filter_size
         )
 
     def _send_arrays_to_gpu_with_pinned_memory(self, cpu_arrays, streams=None):
@@ -302,10 +299,7 @@ class CupyImplementation(ImagingTester):
         operation_time = 0
         transfer_time = 0
 
-        pad_height, pad_width = self.get_padding_values(filter_size)
-
-        filter_height = filter_size[0]
-        filter_width = filter_size[1]
+        pad_size = self.get_padding_value(filter_size)
 
         n_images = self.cpu_arrays[0].shape[0]
 
@@ -320,7 +314,7 @@ class CupyImplementation(ImagingTester):
             self.cpu_arrays[0][i] for i in range(self.cpu_arrays[0].shape[0])
         ]
         cpu_padded_slices = [
-            create_padded_array(arr, pad_width, pad_height) for arr in cpu_data_slices
+            create_padded_array(arr, pad_size) for arr in cpu_data_slices
         ]
         streams = [cp.cuda.Stream(non_blocking=True) for _ in range(slice_limit)]
 
@@ -357,8 +351,7 @@ class CupyImplementation(ImagingTester):
             cupy_two_dim_median_filter(
                 gpu_data_slices[i % slice_limit],
                 gpu_padded_data[i % slice_limit],
-                filter_height,
-                filter_width,
+                filter_size,
             )
 
             streams[i % slice_limit].synchronize()
@@ -385,13 +378,10 @@ class CupyImplementation(ImagingTester):
         transfer_time = 0
         operation_time = 0
 
-        pad_height, pad_width = self.get_padding_values(filter_size)
-
-        filter_height = filter_size[0]
-        filter_width = filter_size[1]
+        pad_size = self.get_padding_value(filter_size)
 
         padded_cpu_array = create_padded_array(
-            self.cpu_arrays[0], pad_width, pad_height
+            self.cpu_arrays[0], pad_size
         )
 
         if n_partitions_needed == 1:
@@ -407,7 +397,7 @@ class CupyImplementation(ImagingTester):
             for _ in range(runs):
                 operation_time += time_function(
                     lambda: cupy_three_dim_median_filter(
-                        gpu_data_array, padded_gpu_array, filter_height, filter_width
+                        gpu_data_array, padded_gpu_array, filter_size
                     )
                 )
 
@@ -457,7 +447,7 @@ class CupyImplementation(ImagingTester):
                         split_cpu_array, cp.cuda.Stream(non_blocking=True)
                     )
                     gpu_padded_array.set(
-                        create_padded_array(split_cpu_array, pad_width, pad_height),
+                        create_padded_array(split_cpu_array, pad_size),
                         cp.cuda.Stream(non_blocking=True),
                     )
                     transfer_time += get_synchronized_time() - start
@@ -475,7 +465,7 @@ class CupyImplementation(ImagingTester):
                     transfer_time += get_synchronized_time() - start
 
                     padded_cpu_array = create_padded_array(
-                        expanded_cpu_array, pad_width, pad_height
+                        expanded_cpu_array, pad_size
                     )
                     start = get_synchronized_time()
                     gpu_padded_array.set(
@@ -490,8 +480,7 @@ class CupyImplementation(ImagingTester):
                             lambda: cupy_three_dim_median_filter(
                                 gpu_data_array,
                                 gpu_padded_array,
-                                filter_height,
-                                filter_width,
+                                filter_size,
                             )
                         )
                 except cp.cuda.memory.OutOfMemoryError as e:
@@ -517,7 +506,5 @@ class CupyImplementation(ImagingTester):
 
         return transfer_time + operation_time / runs
 
-    def get_padding_values(self, filter_size):
-        pad_height = filter_size[1] // 2
-        pad_width = filter_size[0] // 2
-        return pad_height, pad_width
+    def get_padding_value(self, filter_size):
+        return filter_size // 2
