@@ -118,14 +118,7 @@ def cupy_three_dim_median_filter(data, padded_data, filter_size):
     three_dim_median_filter(
         grid_size,
         block_size,
-        (
-            data,
-            padded_data,
-            data.shape[0],
-            data.shape[1],
-            data.shape[2],
-            filter_size,
-        ),
+        (data, padded_data, data.shape[0], data.shape[1], data.shape[2], filter_size),
     )
 
 
@@ -201,20 +194,14 @@ class CupyImplementation(ImagingTester):
         filter_size = 3
 
         single_image = image_stack[0]
-        padded_image = create_padded_array(
-            single_image, filter_size
-        )
+        padded_image = create_padded_array(single_image, filter_size)
         gpu_image, gpu_padded_image = self._send_arrays_to_gpu_without_pinned_memory(
             [single_image, padded_image]
         )
 
-        cupy_two_dim_median_filter(
-            gpu_image, gpu_padded_image, filter_size
-        )
+        cupy_two_dim_median_filter(gpu_image, gpu_padded_image, filter_size)
 
-        padded_image_stack = create_padded_array(
-            image_stack, filter_size // 2
-        )
+        padded_image_stack = create_padded_array(image_stack, filter_size // 2)
         gpu_image_stack, gpu_padded_image_stack = self._send_arrays_to_gpu_without_pinned_memory(
             [image_stack, padded_image_stack]
         )
@@ -380,9 +367,7 @@ class CupyImplementation(ImagingTester):
 
         pad_size = self.get_padding_value(filter_size)
 
-        padded_cpu_array = create_padded_array(
-            self.cpu_arrays[0], pad_size
-        )
+        padded_cpu_array = create_padded_array(self.cpu_arrays[0], pad_size)
 
         if n_partitions_needed == 1:
 
@@ -464,9 +449,7 @@ class CupyImplementation(ImagingTester):
                     )
                     transfer_time += get_synchronized_time() - start
 
-                    padded_cpu_array = create_padded_array(
-                        expanded_cpu_array, pad_size
-                    )
+                    padded_cpu_array = create_padded_array(expanded_cpu_array, pad_size)
                     start = get_synchronized_time()
                     gpu_padded_array.set(
                         padded_cpu_array, cp.cuda.Stream(non_blocking=True)
@@ -478,9 +461,7 @@ class CupyImplementation(ImagingTester):
                     for _ in range(runs):
                         operation_time += time_function(
                             lambda: cupy_three_dim_median_filter(
-                                gpu_data_array,
-                                gpu_padded_array,
-                                filter_size,
+                                gpu_data_array, gpu_padded_array, filter_size
                             )
                         )
                 except cp.cuda.memory.OutOfMemoryError as e:

@@ -23,11 +23,9 @@ else:
     pinned_memory_mode = [True]
 
 # These need to be odd values and need to be equal
-filter_height = 3
-filter_width = 3
-filter_size = (filter_height, filter_width)
+filter_size = 3
 
-test_size = 5
+test_size = 50
 
 cp_data = cp.random.uniform(
     low=0, high=10, size=(test_size, test_size, test_size)
@@ -35,20 +33,16 @@ cp_data = cp.random.uniform(
 np_data = cp_data.get()
 
 # Create a padded array in the GPU
-pad_height = filter_height // 2
-pad_width = filter_width // 2
+pad_size = filter_size // 2
 padded_data = cp.pad(
     cp_data,
-    pad_width=((0, 0), (pad_height, pad_height), (pad_width, pad_width)),
+    pad_width=((0, 0), (pad_size, pad_size), (pad_size, pad_size)),
     mode=REFLECT_MODE,
 )
 
 # Run the median filter on the GPU
 cupy_three_dim_median_filter(
-    data=cp_data,
-    padded_data=padded_data,
-    filter_height=filter_height,
-    filter_width=filter_width,
+    data=cp_data, padded_data=padded_data, filter_size=filter_size
 )
 # Run the scipy median filter
 scipy_median_filter(np_data, size=filter_size)
