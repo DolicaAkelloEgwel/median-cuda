@@ -18,6 +18,12 @@ extern "C"{
         }
         return neighb_array[N / 2];
     }
+    __device__ void print_neighbour_array(const float* array, const int N)
+    {
+        for (int i = 0; i < N; i++)
+            printf("%.6f ", array[i]);
+        printf("\n");
+    }
     __device__ float find_neighbour_median(const float* padded_array, const int index_offset, const int padded_img_width, const int id_x, const int id_y, const int filter_size)
     {
         float neighb_array[25];
@@ -31,6 +37,16 @@ extern "C"{
                 n_counter += 1;
             }
         }
+
+        if (id_x == 1 && id_y == 1)
+        {
+            print_neighbour_array(neighb_array, 9);
+        }
+        else
+        {
+            printf("%d %d\n", id_x, id_y);
+        }
+
         return find_median_in_one_dim_array(neighb_array, filter_size * filter_size);
     }
     __global__ void three_dim_median_filter(float* data_array, const float* padded_array, const int N_IMAGES, const int X, const int Y, const int filter_size)

@@ -123,8 +123,10 @@ def cupy_three_dim_median_filter(data, padded_data, filter_size):
 
 
 def cupy_two_dim_median_filter(data, padded_data, filter_size):
-    N = 10
-    block_size, grid_size = create_block_and_grid_args(N, data)
+    block_size, grid_size = create_block_and_grid_args(data)
+    print("Data shape:", data.shape)
+    print("Grid size:", grid_size)
+    print("Block size:", block_size)
     two_dim_median_filter(
         grid_size,
         block_size,
@@ -132,9 +134,13 @@ def cupy_two_dim_median_filter(data, padded_data, filter_size):
     )
 
 
-def create_block_and_grid_args(N, data):
+def create_block_and_grid_args(data):
+    N = 10
+    if (data.shape[0] > 10 and data.shape[1] > 10):
+        grid_size = (data.shape[0] // block_size[0], data.shape[1] // block_size[1])
+    else:
+        grid_size = (1, 1)
     block_size = (N, N)
-    grid_size = (data.shape[0] // block_size[0], data.shape[1] // block_size[1])
     return block_size, grid_size
 
 
