@@ -140,11 +140,12 @@ def create_block_and_grid_args(data):
     if data.shape[0] > 10 and data.shape[1] > 10:
         grid_size = (
             data.shape[0] // block_size[0],
-            data.shape[1] // block_size[1],
-            data.shape[2] // block_size[1],
+            (data.shape[1] // block_size[1]) + 1,
+            data.shape[1],
         )
     else:
-        grid_size = (data.shape[0], data.shape[1], data.shape[1])
+        grid_size = (data.shape[0], data.shape[1], N)
+    grid_size = data.shape
     return block_size, grid_size
 
 

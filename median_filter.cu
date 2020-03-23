@@ -59,8 +59,8 @@ extern "C"{
     }
     __global__ void two_dim_median_filter(float* data_array, const float* padded_array, const int X, const int Y, const int filter_size)
     {
-        unsigned int id_x = blockIdx.y*blockDim.y + threadIdx.y;
-        unsigned int id_y = blockIdx.z*blockDim.z + threadIdx.z;
+        unsigned int id_x = blockIdx.x*blockDim.x + threadIdx.x;
+        unsigned int id_y = blockIdx.y*blockDim.y + threadIdx.y;
         unsigned int n_counter = 0;
         unsigned int padded_img_width =  X + filter_size - 1;
 
@@ -73,8 +73,8 @@ extern "C"{
     }
     __global__ void two_dim_remove_light_outliers(float* data_array, const float* padded_array, const int X, const int Y, const int filter_size, const float diff)
     {
-        unsigned int id_x = blockIdx.y*blockDim.y + threadIdx.y;
-        unsigned int id_y = blockIdx.z*blockDim.z + threadIdx.z;
+        unsigned int id_x = blockIdx.x*blockDim.x + threadIdx.x;
+        unsigned int id_y = blockIdx.y*blockDim.y + threadIdx.y;
         unsigned int index = (id_x * X) + id_y;
         unsigned int n_counter = 0;
         unsigned int padded_img_width =  X + filter_size - 1;
@@ -93,8 +93,8 @@ extern "C"{
     }
     __global__ void two_dim_remove_dark_outliers(float* data_array, const float* padded_array, const int X, const int Y, const int filter_size, const float diff)
     {
-        unsigned int id_x = blockIdx.y*blockDim.y + threadIdx.y;
-        unsigned int id_y = blockIdx.z*blockDim.z + threadIdx.z;
+        unsigned int id_x = blockIdx.x*blockDim.x + threadIdx.x;
+        unsigned int id_y = blockIdx.y*blockDim.y + threadIdx.y;
         unsigned int index = (id_x * X) + id_y;
         unsigned int n_counter = 0;
         unsigned int padded_img_width =  X + filter_size - 1;
