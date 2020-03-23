@@ -136,11 +136,15 @@ def cupy_two_dim_median_filter(data, padded_data, filter_size):
 
 def create_block_and_grid_args(data):
     N = 10
-    if (data.shape[0] > 10 and data.shape[1] > 10):
-        grid_size = (data.shape[0] // block_size[0], data.shape[1] // block_size[1])
-    else:
-        grid_size = (1, 1)
     block_size = (N, N)
+    if data.shape[0] > 10 and data.shape[1] > 10:
+        grid_size = (
+            data.shape[0] // block_size[0],
+            data.shape[1] // block_size[1],
+            data.shape[2] // block_size[1],
+        )
+    else:
+        grid_size = (data.shape[0], data.shape[1], data.shape[1])
     return block_size, grid_size
 
 

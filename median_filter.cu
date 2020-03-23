@@ -38,15 +38,6 @@ extern "C"{
             }
         }
 
-        if (id_x == 1 && id_y == 1)
-        {
-            print_neighbour_array(neighb_array, 9);
-        }
-        else
-        {
-            printf("%d %d\n", id_x, id_y);
-        }
-
         return find_median_in_one_dim_array(neighb_array, filter_size * filter_size);
     }
     __global__ void three_dim_median_filter(float* data_array, const float* padded_array, const int N_IMAGES, const int X, const int Y, const int filter_size)
