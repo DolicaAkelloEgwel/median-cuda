@@ -6,10 +6,11 @@ from cupy_test_utils import create_padded_array, cupy_two_dim_remove_outliers
 from imagingtester import DTYPE
 
 size = 3
-N = 50
+IMAGES = 3
+N = 200
 
 cp.random.seed(19)
-cp_data = cp.random.uniform(low=0, high=20, size=(N, N, N)).astype(DTYPE)
+cp_data = cp.random.uniform(low=0, high=20, size=(IMAGES, N, N)).astype(DTYPE)
 np_data = cp_data.get()
 gpu_result = np.empty_like(np_data)
 
@@ -23,7 +24,7 @@ diff = 0.5
 
 cpu_result = tomopy.misc.corr.remove_outlier(np_data, diff, size)
 
-for i in range(N):
+for i in range(IMAGES):
     cp.cuda.runtime.deviceSynchronize()
     cupy_two_dim_remove_outliers(cp_data[i], cp_padded_data[i], diff, size, "light")
     cp.cuda.runtime.deviceSynchronize()
