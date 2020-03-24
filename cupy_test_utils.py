@@ -124,9 +124,6 @@ def cupy_three_dim_median_filter(data, padded_data, filter_size):
 
 def cupy_two_dim_median_filter(data, padded_data, filter_size):
     block_size, grid_size = create_block_and_grid_args(data)
-    print("Data shape:", data.shape)
-    print("Grid size:", grid_size)
-    print("Block size:", block_size)
     two_dim_median_filter(
         grid_size,
         block_size,
@@ -150,7 +147,7 @@ def create_block_and_grid_args(data):
 
 
 def cupy_two_dim_remove_outliers(data, padded_data, diff, size, mode):
-    block_size, grid_size = create_block_and_grid_args(10, data)
+    block_size, grid_size = create_block_and_grid_args(data)
 
     if mode == "light":
         two_dim_remove_light_outliers(

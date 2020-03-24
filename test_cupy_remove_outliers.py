@@ -2,11 +2,11 @@ import tomopy
 import cupy as cp
 import numpy as np
 
-from cupy_test_utils import create_padded_array, cupy_two_dim_median_filter
+from cupy_test_utils import create_padded_array, cupy_two_dim_remove_outliers
 from imagingtester import DTYPE
 
 size = 3
-N = 500
+N = 5
 
 cp.random.seed(19)
 cp_data = cp.random.uniform(low=0, high=20, size=(N, N, N)).astype(DTYPE)
@@ -21,11 +21,11 @@ print(cp_padded_data.shape)
 
 diff = 0.5
 
-cpu_result = tomopy.misc.corr.median_filter(np_data, size)
+cpu_result = tomopy.misc.corr.remove_outlier(np_data, diff, size)
 
 for i in range(N):
     cp.cuda.runtime.deviceSynchronize()
-    cupy_two_dim_median_filter(cp_data[i], cp_padded_data[i], size)
+    cupy_two_dim_remove_outliers(cp_data[i], cp_padded_data[i], diff, size, "light")
     cp.cuda.runtime.deviceSynchronize()
     gpu_result[i][:] = cp_data[i].get()
 

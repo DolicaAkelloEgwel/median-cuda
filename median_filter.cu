@@ -45,26 +45,20 @@ extern "C"{
         unsigned int id_img = blockIdx.x*blockDim.x + threadIdx.x;
         unsigned int id_x = blockIdx.y*blockDim.y + threadIdx.y;
         unsigned int id_y = blockIdx.z*blockDim.z + threadIdx.z;
-        unsigned int n_counter = 0;
         unsigned int img_size =  X * Y;
         unsigned int padded_img_width =  X + filter_size - 1;
         unsigned int padded_img_size =  padded_img_width * (Y + filter_size - 1);
 
-        float neighb_array[25];
-
         if ((id_img >= N_IMAGES) || (id_x >= X) || (id_y >= Y))
             return;
-        
+
         data_array[(id_img * img_size) + (id_x * X) + id_y] = find_neighbour_median(padded_array, id_img * padded_img_size, padded_img_width, id_x, id_y, filter_size);
     }
     __global__ void two_dim_median_filter(float* data_array, const float* padded_array, const int X, const int Y, const int filter_size)
     {
         unsigned int id_x = blockIdx.x*blockDim.x + threadIdx.x;
         unsigned int id_y = blockIdx.y*blockDim.y + threadIdx.y;
-        unsigned int n_counter = 0;
         unsigned int padded_img_width =  X + filter_size - 1;
-
-        float neighb_array[25];
 
         if ((id_x >= X) || (id_y >= Y))
             return;
@@ -76,10 +70,7 @@ extern "C"{
         unsigned int id_x = blockIdx.x*blockDim.x + threadIdx.x;
         unsigned int id_y = blockIdx.y*blockDim.y + threadIdx.y;
         unsigned int index = (id_x * X) + id_y;
-        unsigned int n_counter = 0;
         unsigned int padded_img_width =  X + filter_size - 1;
-
-        float neighb_array[25];
 
         if ((id_x >= X) || (id_y >= Y))
             return;
@@ -87,19 +78,14 @@ extern "C"{
         float median = find_neighbour_median(padded_array, 0, padded_img_width, id_x, id_y, filter_size);
 
         if (data_array[index] - median >= diff)
-        {
             data_array[index] = median;
-        }
     }
     __global__ void two_dim_remove_dark_outliers(float* data_array, const float* padded_array, const int X, const int Y, const int filter_size, const float diff)
     {
         unsigned int id_x = blockIdx.x*blockDim.x + threadIdx.x;
         unsigned int id_y = blockIdx.y*blockDim.y + threadIdx.y;
         unsigned int index = (id_x * X) + id_y;
-        unsigned int n_counter = 0;
         unsigned int padded_img_width =  X + filter_size - 1;
-
-        float neighb_array[25];
 
         if ((id_x >= X) || (id_y >= Y))
             return;
@@ -107,8 +93,6 @@ extern "C"{
         float median = find_neighbour_median(padded_array, 0, padded_img_width, id_x, id_y, filter_size);
 
         if (median - data_array[index] >= diff)
-        {
             data_array[index] = median;
-        }
     }
 }
