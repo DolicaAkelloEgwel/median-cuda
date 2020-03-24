@@ -6,7 +6,7 @@ from cupy_test_utils import create_padded_array, cupy_two_dim_remove_outliers
 from imagingtester import DTYPE
 
 size = 3
-N = 5
+N = 50
 
 cp.random.seed(19)
 cp_data = cp.random.uniform(low=0, high=20, size=(N, N, N)).astype(DTYPE)
