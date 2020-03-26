@@ -107,7 +107,7 @@ two_dim_remove_dark_outliers = median_filter_module.get_function(
 )
 
 
-def cupy_three_dim_median_filter(data, padded_data, filter_size):
+def create_three_dim_block_and_grid_args(data):
     N = 10
     block_size = (N, N, N)
     grid_size = (
@@ -115,6 +115,11 @@ def cupy_three_dim_median_filter(data, padded_data, filter_size):
         data.shape[1] // block_size[1],
         data.shape[2] // block_size[2],
     )
+    return block_size, grid_size
+
+
+def cupy_three_dim_median_filter(data, padded_data, filter_size):
+    block_size, grid_size = create_three_dim_block_and_grid_args(data)
     three_dim_median_filter(
         grid_size,
         block_size,
@@ -123,7 +128,7 @@ def cupy_three_dim_median_filter(data, padded_data, filter_size):
 
 
 def cupy_two_dim_median_filter(data, padded_data, filter_size):
-    block_size, grid_size = create_block_and_grid_args(data)
+    block_size, grid_size = create_two_dim_block_and_grid_args(data)
     two_dim_median_filter(
         grid_size,
         block_size,
@@ -131,7 +136,7 @@ def cupy_two_dim_median_filter(data, padded_data, filter_size):
     )
 
 
-def create_block_and_grid_args(data):
+def create_two_dim_block_and_grid_args(data):
     block_size = (10, 10)
     grid_size = (
         (data.shape[0] // block_size[0]) + 1,
@@ -141,7 +146,7 @@ def create_block_and_grid_args(data):
 
 
 def cupy_two_dim_remove_outliers(data, padded_data, diff, size, mode):
-    block_size, grid_size = create_block_and_grid_args(data)
+    block_size, grid_size = create_two_dim_block_and_grid_args(data)
 
     if mode == "light":
         two_dim_remove_light_outliers(
@@ -292,7 +297,7 @@ class CupyImplementation(ImagingTester):
 
         n_images = self.cpu_arrays[0].shape[0]
 
-        MAX_GPU_SLICES = 180
+        MAX_GPU_SLICES = 100
 
         if n_images > MAX_GPU_SLICES:
             slice_limit = MAX_GPU_SLICES

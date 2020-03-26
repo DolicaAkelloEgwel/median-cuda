@@ -63,7 +63,8 @@ extern "C"{
         if ((id_x >= X) || (id_y >= Y))
             return;
 
-        data_array[(id_x * X) + id_y] = find_neighbour_median(padded_array, 0, padded_img_width, id_x, id_y, filter_size);  
+        data_array[(id_x * X) + id_y] = find_neighbour_median(padded_array, 0, padded_img_width, id_x, id_y, filter_size);
+
     }
     __global__ void two_dim_remove_light_outliers(float* data_array, const float* padded_array, const int X, const int Y, const int filter_size, const float diff)
     {
