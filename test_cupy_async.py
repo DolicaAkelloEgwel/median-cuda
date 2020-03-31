@@ -1,4 +1,10 @@
-from cupy_test_utils import CupyImplementation, LIB_NAME, REFLECT_MODE, cupy_two_dim_median_filter, free_memory_pool
+from cupy_test_utils import (
+    CupyImplementation,
+    LIB_NAME,
+    REFLECT_MODE,
+    cupy_two_dim_median_filter,
+    free_memory_pool,
+)
 import cupy as cp
 import numpy as np
 import scipy.ndimage as scipy_ndimage
@@ -11,37 +17,38 @@ median_filter_results = []
 
 # These need to be odd values and need to be equal
 filter_size = 3
-test_size = 555
+test_size = 2
 
 
-cp_data = cp.random.uniform(
-    low=0, high=10, size=(test_size, test_size)
-).astype(DTYPE)
+cp_data = cp.random.uniform(low=0, high=10, size=(test_size, test_size + 1)).astype(
+    DTYPE
+)
 np_data = cp_data.get()
 
 # Create a padded array in the GPU
 pad_size = filter_size // 2
 padded_data = cp.pad(
-    cp_data,
-    pad_width=((pad_size, pad_size), (pad_size, pad_size)),
-    mode=REFLECT_MODE,
+    cp_data, pad_width=((pad_size, pad_size), (pad_size, pad_size)), mode=REFLECT_MODE
 )
 
 # Run the median filter on the GPU
 cupy_two_dim_median_filter(
     data=cp_data, padded_data=padded_data, filter_size=filter_size
 )
-print("Original data:")
-print(np_data)
 # Run the scipy median filter
-cpu_result = scipy_ndimage.median_filter(np_data, size=(filter_size,filter_size), mode="mirror")
+cpu_result = scipy_ndimage.median_filter(np_data, size=filter_size, mode="mirror")
 # Check that the results match
-cp_result = cp_data.get()
-print("GPU result:")
-print(cp_data)
-print("CPU result:")
-print(cpu_result)
-assert np.allclose(np_data, cp_result)
+gpu_result = cp_data.get()
+try:
+    assert np.allclose(cpu_result, gpu_result)
+except AssertionError:
+    print("Original data:")
+    print(np_data)
+    print("GPU Result data:")
+    print(gpu_result)
+    print("CPU Result data:")
+    print(cpu_result)
+    exit()
 
 del cp_data
 del padded_data
@@ -56,4 +63,6 @@ for size in ARRAY_SIZES[:SIZES_SUBSET]:
     if avg_mf > 0:
         median_filter_results.append(avg_mf)
 
-    write_results_to_file([LIB_NAME, "async", str(FILTER_SIZE)], "median filter", median_filter_results)
+    write_results_to_file(
+        [LIB_NAME, "async", str(FILTER_SIZE)], "median filter", median_filter_results
+    )
