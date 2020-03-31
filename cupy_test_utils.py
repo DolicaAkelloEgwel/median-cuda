@@ -4,6 +4,7 @@ from typing import List
 import cupy as cp
 import numpy as np
 from cupy.cuda.memory import set_allocator
+import scipy.ndimage as scipy_ndimage
 
 from imagingtester import (
     ImagingTester,
@@ -15,11 +16,14 @@ from imagingtester import (
     create_arrays,
 )
 from imagingtester import num_partitions_needed as number_of_partitions_needed
+from cpu_imaging_filters import scipy_median_filter
 
 LIB_NAME = "cupy"
 MAX_CUPY_MEMORY = 0.8  # Anything exceeding this seems to make malloc fail for me
 
 REFLECT_MODE = "reflect"
+
+np.random.seed(19)
 
 # Allocate CUDA memory
 mempool = cp.get_default_memory_pool()
@@ -92,6 +96,33 @@ def get_free_bytes():
     if free_bytes > 0:
         return free_bytes * FREE_MEMORY_FACTOR
     return mempool.get_limit() * FREE_MEMORY_FACTOR
+
+
+def median_on_image_stack(image_stack, filter_size):
+
+    result = np.empty_like(image_stack)
+    for i in range(image_stack.shape[0]):
+        result[i][:] = scipy_ndimage.median_filter(
+            image_stack[i], size=(filter_size, filter_size), mode="mirror"
+        )
+    return result
+
+
+def validate_median(cpu_data, gpu_result, filter_size):
+
+    cpu_result = median_on_image_stack(cpu_data, filter_size)
+    try:
+        assert np.allclose(cpu_result, gpu_result)
+    except AssertionError:
+        print("Assertion failed:")
+        print(cpu_data)
+        print("CPU Result:")
+        print(cpu_result)
+        print("GPU Result:")
+        print(gpu_result)
+        print(cpu_data.shape)
+        exit()
+    print("Validation passed.")
 
 
 loaded_from_source = load_median_filter_file()
@@ -304,11 +335,94 @@ class CupyImplementation(ImagingTester):
         else:
             slice_limit = n_images
 
+        original_cpu_array = self.cpu_arrays[0].copy()
+        gpu_result = np.empty_like(original_cpu_array)
+
         cpu_data_slices = [
             self.cpu_arrays[0][i] for i in range(self.cpu_arrays[0].shape[0])
         ]
         cpu_padded_slices = [
             create_padded_array(arr, pad_size) for arr in cpu_data_slices
+        ]
+        streams = [cp.cuda.Stream(non_blocking=True) for _ in range(slice_limit)]
+
+        start = get_synchronized_time()
+        gpu_data_slices = self._send_arrays_to_gpu_with_pinned_memory(
+            cpu_data_slices[:slice_limit], streams
+        )
+        gpu_padded_data = self._send_arrays_to_gpu_with_pinned_memory(
+            cpu_padded_slices[:slice_limit], streams
+        )
+        transfer_time += get_synchronized_time() - start
+
+        print("Copied arrays.")
+
+        start = get_synchronized_time()
+        for i in range(self.cpu_arrays[0].shape[0]):
+
+            streams[i % slice_limit].synchronize()
+            streams[i % slice_limit].use()
+
+            replace_gpu_array_contents(
+                gpu_data_slices[i % slice_limit],
+                self.cpu_arrays[0][i],
+                streams[i % slice_limit],
+            )
+
+            replace_gpu_array_contents(
+                gpu_padded_data[i % slice_limit],
+                cpu_padded_slices[i],
+                streams[i % slice_limit],
+            )
+
+            streams[i % slice_limit].synchronize()
+
+            cupy_two_dim_median_filter(
+                gpu_data_slices[i % slice_limit],
+                gpu_padded_data[i % slice_limit],
+                filter_size,
+            )
+
+            streams[i % slice_limit].synchronize()
+            assert streams[i % slice_limit].done
+
+            gpu_result[i][:] = gpu_data_slices[i % slice_limit].get(
+                streams[i % slice_limit]
+            )
+
+        operation_time += get_synchronized_time() - start
+
+        if gpu_result.shape[0] <= 500:
+            validate_median(original_cpu_array, gpu_result, filter_size)
+
+        free_memory_pool(gpu_data_slices + gpu_padded_data)
+
+        return operation_time + transfer_time
+
+    def timed_async_remove_outlier(self, runs, filter_size):
+
+        # Synchronize and free memory before making an assessment about available space
+        free_memory_pool()
+
+        operation_time = 0
+        transfer_time = 0
+
+        pad_size = self.get_padding_value(filter_size)
+
+        n_images = self.cpu_arrays[0].shape[0]
+
+        MAX_GPU_SLICES = 100
+
+        if n_images > MAX_GPU_SLICES:
+            slice_limit = MAX_GPU_SLICES
+        else:
+            slice_limit = n_images
+
+        cpu_data_slices = [
+            self.cpu_arrays[0][i] for i in range(self.cpu_arrays[0].shape[0])
+        ]
+        cpu_padded_slices = [
+            create_padded_array(arr, pad_size, "symmetric") for arr in cpu_data_slices
         ]
         streams = [cp.cuda.Stream(non_blocking=True) for _ in range(slice_limit)]
 
@@ -342,10 +456,12 @@ class CupyImplementation(ImagingTester):
 
             streams[i % slice_limit].synchronize()
 
-            cupy_two_dim_median_filter(
+            cupy_two_dim_remove_outliers(
                 gpu_data_slices[i % slice_limit],
                 gpu_padded_data[i % slice_limit],
+                1.5,
                 filter_size,
+                "light",
             )
 
             streams[i % slice_limit].synchronize()
@@ -353,6 +469,7 @@ class CupyImplementation(ImagingTester):
             self.cpu_arrays[0][i][:] = gpu_data_slices[i % slice_limit].get(
                 streams[i % slice_limit]
             )
+
         operation_time += get_synchronized_time() - start
 
         free_memory_pool(gpu_data_slices + gpu_padded_data)
