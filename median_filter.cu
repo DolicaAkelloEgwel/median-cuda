@@ -96,6 +96,7 @@ extern "C"{
         unsigned int padded_img_width =  Y + filter_size - 1;
         unsigned int padded_img_height =  X + filter_size - 1;
         unsigned int index = (id_x * X * Y) + (id_y * Y) + id_z;
+        unsigned int n_counter = 0;
         float neighb_array[27];
 
         for (int i = id_x; i < id_x + filter_size; i++)
@@ -110,7 +111,7 @@ extern "C"{
             }
         }
 
-        data_array[index] = find_neighbour_median(neighb_array, filter_size * filter_size * filter_size);
+        data_array[index] = find_median_in_one_dim_array(neighb_array, filter_size * filter_size * filter_size);
 
     }
     __global__ void two_dim_remove_light_outliers(float* data_array, const float* padded_array, const int X, const int Y, const int filter_size, const float diff)
