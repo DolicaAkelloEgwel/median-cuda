@@ -30,19 +30,22 @@ plt.subplot(1, 2, 1)
 plt.title("Speed Change For Median Filter When Compared With scipy")
 
 for key in results.keys():
-    if key == "scipy":
+    if "scipy" in key:
         continue
-    try:
-        diff = list(
-            map(
-                truediv,
-                results["scipy"]["median filter"],
-                results[key]["median filter"],
+    for filter_size in [" 3", " 5", " 7"]:
+        if not filter_size in key:
+            continue
+        try:
+            diff = list(
+                map(
+                    truediv,
+                    results["scipy" + filter_size]["median filter"],
+                    results[key]["median filter"],
+                )
             )
-        )
-        plt.plot(diff, label=key, marker=".", color=median_colours[key])
-    except KeyError:
-        continue
+            plt.plot(diff, label=key, marker=".", color=median_colours[key])
+        except KeyError:
+            continue
 plt.xticks(range(len(TOTAL_PIXELS)), TOTAL_PIXELS)
 plt.xlabel("Number of Pixels/Elements")
 

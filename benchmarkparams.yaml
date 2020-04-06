@@ -5,3 +5,4 @@ print_info: true
 test_parallel_numba: false
 free_memory_factor: 0.7
 use_cupy_nonpinned_memory: false #
+filter_size: 7 #

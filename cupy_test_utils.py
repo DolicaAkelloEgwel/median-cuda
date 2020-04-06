@@ -128,7 +128,9 @@ def validate_median(cpu_data, gpu_result, filter_size):
 loaded_from_source = load_median_filter_file()
 
 median_filter_module = cp.RawModule(code=loaded_from_source, backend="nvcc")
-three_dim_median_filter = median_filter_module.get_function("three_dim_median_filter")
+image_stack_median_filter = median_filter_module.get_function(
+    "image_stack_median_filter"
+)
 two_dim_median_filter = median_filter_module.get_function("two_dim_median_filter")
 two_dim_remove_light_outliers = median_filter_module.get_function(
     "two_dim_remove_light_outliers"
@@ -149,9 +151,9 @@ def create_three_dim_block_and_grid_args(data):
     return block_size, grid_size
 
 
-def cupy_three_dim_median_filter(data, padded_data, filter_size):
+def cupy_image_stack_median_filter(data, padded_data, filter_size):
     block_size, grid_size = create_three_dim_block_and_grid_args(data)
-    three_dim_median_filter(
+    image_stack_median_filter(
         grid_size,
         block_size,
         (data, padded_data, data.shape[0], data.shape[1], data.shape[2], filter_size),
@@ -244,7 +246,7 @@ class CupyImplementation(ImagingTester):
             [image_stack, padded_image_stack]
         )
 
-        cupy_three_dim_median_filter(
+        cupy_image_stack_median_filter(
             gpu_image_stack, gpu_padded_image_stack, filter_size
         )
 
@@ -476,7 +478,7 @@ class CupyImplementation(ImagingTester):
 
         return operation_time + transfer_time
 
-    def timed_three_dim_median_filter(self, runs, filter_size):
+    def timed_image_stack_median_filter(self, runs, filter_size):
 
         # Synchronize and free memory before making an assessment about available space
         free_memory_pool()
@@ -505,7 +507,7 @@ class CupyImplementation(ImagingTester):
             # Repeat the operation
             for _ in range(runs):
                 operation_time += time_function(
-                    lambda: cupy_three_dim_median_filter(
+                    lambda: cupy_image_stack_median_filter(
                         gpu_data_array, padded_gpu_array, filter_size
                     )
                 )
@@ -584,7 +586,7 @@ class CupyImplementation(ImagingTester):
                     # Carry out the operation on the slices
                     for _ in range(runs):
                         operation_time += time_function(
-                            lambda: cupy_three_dim_median_filter(
+                            lambda: cupy_image_stack_median_filter(
                                 gpu_data_array, gpu_padded_array, filter_size
                             )
                         )

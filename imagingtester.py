@@ -18,7 +18,7 @@ TEST_PARALLEL_NUMBA = None
 USE_CUPY_NONPINNED_MEMORY = None
 FREE_MEMORY_FACTOR = None
 
-FILTER_SIZE = 5
+FILTER_SIZE = 3
 
 # Retrieve the benchmark parameters from the yaml file
 with open(os.path.join(os.getcwd(), "benchmarkparams.yaml")) as f:
@@ -30,6 +30,7 @@ with open(os.path.join(os.getcwd(), "benchmarkparams.yaml")) as f:
     TEST_PARALLEL_NUMBA = params["test_parallel_numba"]
     USE_CUPY_NONPINNED_MEMORY = params["use_cupy_nonpinned_memory"]
     FREE_MEMORY_FACTOR = params["free_memory_factor"]
+    FILTER_SIZE = params["filter_size"]
 
 
 def create_arrays(size_tuple, dtype):
