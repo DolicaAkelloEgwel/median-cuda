@@ -84,18 +84,17 @@ extern "C"{
         data_array[index] = find_neighbour_median(padded_array, 0, padded_img_width, id_x, id_y, filter_size);
 
     }
-    __global__ void three_dim_median_filter(float* data_array, const float* padded_array, const int X, const int Y, const int Z, const int filter_size)
+    __global__ void three_dim_async_median_filter(float* data_array, const float* padded_array, const int X, const int Y, const int filter_size)
     {
         unsigned int id_x = blockIdx.x*blockDim.x + threadIdx.x;
         unsigned int id_y = blockIdx.y*blockDim.y + threadIdx.y;
-        unsigned int id_z = blockIdx.z*blockDim.z + threadIdx.z;
 
         if ((id_x >= X) || (id_y >= Y))
             return;
 
-        unsigned int padded_img_width =  Y + filter_size - 1;
-        unsigned int padded_img_height =  X + filter_size - 1;
-        unsigned int index = (id_x * X * Y) + (id_y * Y) + id_z;
+        unsigned int padded_img_height = X + filter_size - 1;
+        unsigned int padded_img_width = Y + filter_size - 1;
+        unsigned int index = ((filter_size / 2) * X * Y) + (id_x * Y) + id_y;
         unsigned int n_counter = 0;
         float neighb_array[27];
 
@@ -103,11 +102,8 @@ extern "C"{
         {
             for (int j = id_y; j < id_y + filter_size; j++)
             {
-                for (int k = id_z; k < id_z + filter_size; k++)
-                {
-                    neighb_array[n_counter] = data_array[(i * padded_img_width * padded_img_height) + (j * padded_img_width) + k];
-                    n_counter++;
-                }
+                neighb_array[n_counter] = data_array[];
+                n_counter++;
             }
         }
 
